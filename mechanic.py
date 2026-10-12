@@ -1,16 +1,16 @@
 import pygame
 import os
 import cv2
+import random
+
 CUR_PATH = os.getcwd()
-PLAYER_SPRITE = os.path.join(CUR_PATH, 'PCV_Game/assets/2D_TOPDOWN_PIXELART_CARS.png')
-ROAD_SPRITE = os.path.join(CUR_PATH, 'PCV_Game/assets/background-1.png')
+print(CUR_PATH)
+PLAYER_SPRITE = os.path.join(CUR_PATH, 'assets/2D_TOPDOWN_PIXELART_CARS.png')
+ROAD_SPRITE = os.path.join(CUR_PATH, 'assets/background-1.png')
+
 def set_orientation(image, angle, center_position):
-    # Rotate the original surface
     rotated_image = pygame.transform.rotate(image, angle)
-    
-    # Generate the new bounding rect and lock the center
     new_rect = rotated_image.get_rect(center=center_position)
-    
     return rotated_image, new_rect
 
 class Player(pygame.sprite.Sprite):
@@ -51,35 +51,102 @@ class Player(pygame.sprite.Sprite):
         self.handle_input()
         self.rect.x += self.velocity_x
 
-import pygame
 
 class Road(pygame.sprite.Sprite):
     def __init__(self, screen_width, screen_height):
         super().__init__()
         self.image = pygame.image.load(ROAD_SPRITE).convert_alpha()
-        self.image = pygame.transform.scale_by(self.image, 1.25)
+        self.image = pygame.transform.scale_by(self.image, 2)
         self.rect = self.image.get_rect()
         
-        # Create two road segments to loop seamlessly
         self.rects = [
-            pygame.Rect((screen_width-self.rect.width)/2, 0               , self.rect.width, self.rect.height-50),
-            pygame.Rect((screen_width-self.rect.width)/2, self.rect.height, self.rect.width, self.rect.height-50),
-            pygame.Rect((screen_width-self.rect.width)/2, 2*self.rect.height,self.rect.width, self.rect.height-50)
+            pygame.Rect((screen_width - self.rect.width) / 2, 0, self.rect.width, self.rect.height),
+            pygame.Rect((screen_width - self.rect.width) / 2, self.rect.height, self.rect.width, self.rect.height),
+            pygame.Rect((screen_width - self.rect.width) / 2, 2 * self.rect.height, self.rect.width, self.rect.height)
         ]
-        self.speed = 15
+        self.speed = 20
         self.screen_height = screen_height
 
     def update(self):
         for rect in self.rects:
             rect.y += self.speed
             if rect.y >= self.screen_height:
-                rect.y = -rect.height
+                rect.y = -self.rect.height + 100
 
     def draw(self, surface):
         for rect in self.rects:
             surface.blit(self.image, rect)
 
-        
-    
 
+class NPC(pygame.sprite.Sprite):
+    def __init__(self, screen_width, screen_height):
+        super().__init__()
+        base_image = pygame.image.load(PLAYER_SPRITE).convert_alpha()
+        self.scaled_base = pygame.transform.scale_by(base_image, 3)
         
+        self.speed = 10
+        self.screen_height = screen_height
+        self.screen_width = screen_width
+        
+        self.npcs = []
+        sprite_width = 120
+        
+        # Fixed syntax error and multiplier formatting
+        self.lanes = [i * sprite_width +390 for i in range(int((self.screen_width * 0.65 )/ sprite_width))]
+        self.available_lanes = []
+        
+        # Define vertical offsets pool for spawning staggered above screen
+        self.cols = [-700*(i + 1) for i in range(5)]
+        self.available_cols = []
+        
+        for _ in range(9):
+            crop_area = pygame.Rect(0, random.randint(0, 3) * 278, 90, 200)
+            image = self.scaled_base.subsurface(crop_area)
+            
+            rect = image.get_rect()
+            rect.x = self.get_safe_lane()  # Now uses unique lane pooling!
+            rect.y = self.get_next_cols()
+            
+            if rect.x <= self.screen_width/2:
+                    image = pygame.transform.rotate(image, 180)
+                    speed = 2*self.speed + 10
+            else :
+                speed = self.speed
+            
+            self.npcs.append({"image": image, "rect": rect, "speed":speed})
+
+    def get_next_cols(self):
+        if not self.available_cols:
+            self.available_cols = self.cols.copy()
+            random.shuffle(self.available_cols)
+        return self.available_cols.pop(0)
+    
+    def get_safe_lane(self):
+        # Check where existing NPCs are parked/driving
+        occupied_lanes = [npc["rect"].x for npc in self.npcs]
+        free_lanes = [lane for lane in self.lanes if lane not in occupied_lanes]
+        
+        if not free_lanes:
+            return random.choice(self.lanes)
+        return random.choice(free_lanes)
+    
+    def update(self):
+        for npc in self.npcs:
+            npc["rect"].y += npc["speed"]
+            
+            # If it goes off the bottom, reset it to the top using pools
+            if npc["rect"].y >= self.screen_height:
+                crop_area = pygame.Rect(0, random.randint(0, 3) * 278, 90, 200)
+                npc["image"] = self.scaled_base.subsurface(crop_area)
+                
+                npc["rect"].y = self.get_next_cols()
+                npc["rect"].x = self.get_safe_lane()  # Prevents horizontal overlap
+                if npc["rect"].x <= self.screen_width/2:
+                    npc["image"] = pygame.transform.rotate(npc["image"], 180)
+                    npc["speed"] = 2*self.speed + 10
+                else :
+                    npc["speed"] = self.speed
+
+    def draw(self, surface):
+        for npc in self.npcs:
+            surface.blit(npc["image"], npc["rect"])

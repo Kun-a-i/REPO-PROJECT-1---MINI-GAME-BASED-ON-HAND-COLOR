@@ -11,6 +11,7 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCRREN_HEIGHT))
 player = mechanic.Player(SCREEN_WIDTH/2 + 45, SCRREN_HEIGHT - 300)
 all_sprites = pygame.sprite.Group()
 road = mechanic.Road(SCREEN_WIDTH,SCRREN_HEIGHT)
+npc = mechanic.NPC(SCREEN_WIDTH, SCRREN_HEIGHT)
 all_sprites.add(player)
 clock = pygame.time.Clock()
 
@@ -20,11 +21,12 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-    
             
     screen.fill((0, 255, 0))
     road.update()
     road.draw(screen)
+    npc.update()
+    npc.draw(screen)
     player.update()
 
     all_sprites.draw(screen)
