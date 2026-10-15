@@ -8,7 +8,7 @@ SCRREN_HEIGHT = 1080
 
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCRREN_HEIGHT))
-player = mechanic.Player(SCREEN_WIDTH/2 + 45, SCRREN_HEIGHT - 300)
+player = mechanic.Player(SCREEN_WIDTH/2 + 400, SCRREN_HEIGHT - 300)
 all_sprites = pygame.sprite.Group()
 road = mechanic.Road(SCREEN_WIDTH,SCRREN_HEIGHT)
 npc = mechanic.NPC(SCREEN_WIDTH, SCRREN_HEIGHT)
@@ -21,6 +21,10 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            x, y = pygame.mouse.get_pos()
+    
+            print(f"Cursor position: X={x}, Y={y}")
             
     screen.fill((0, 255, 0))
     road.update()
