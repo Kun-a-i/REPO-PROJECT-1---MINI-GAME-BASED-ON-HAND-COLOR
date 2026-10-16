@@ -14,20 +14,18 @@ def set_orientation(image, angle, center_position):
     return rotated_image, new_rect
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, screen_width, screen_height):
         super().__init__()
         self.original_image = pygame.image.load(PLAYER_SPRITE).convert_alpha()
         crop_area = pygame.Rect(0, 0, 30, 64)
         self.original_image = self.original_image.subsurface(crop_area)
-        self.original_image = pygame.transform.scale_by(self.original_image, 3) 
-        self.original_image = self.original_image.copy()
         
         self.rect = self.original_image.get_rect()
-        print(f"X scale : {x/self.rect.width}")
-        print(f"Y scale : {y/self.rect.height}")
+        print(f"X scale : {screen_width/self.rect.width}")
+        print(f"Y scale : {screen_height/self.rect.height}")
 
         target_scale=(15.11111111111111, 4.0625)
-        scale = (x/self.rect.width, y/self.rect.height)
+        scale = (screen_width/self.rect.width, screen_height/self.rect.height)
         final_scale = min(scale[0]/target_scale[0], scale[1]/target_scale[1])
         self.original_image = pygame.transform.scale_by(self.original_image, final_scale)
         self.rect = self.original_image.get_rect()
@@ -35,7 +33,8 @@ class Player(pygame.sprite.Sprite):
 
 
         
-        self.rect.topleft = (x, y)
+        self.rect.topleft = (screen_width/2+self.rect.width, 
+                             screen_height/2+self.rect.height)
         
         self.speed = 5
         self.lean_angle = 20
@@ -67,7 +66,6 @@ class Road(pygame.sprite.Sprite):
     def __init__(self, screen_width, screen_height):
         super().__init__()
         self.image = pygame.image.load(ROAD_SPRITE).convert_alpha()
-        self.image = pygame.transform.scale_by(self.image, 1)
         self.rect = self.image.get_rect()
         
         target_scale = (1.1428571428571428, 0.8307692307692308) 
@@ -97,17 +95,17 @@ class Road(pygame.sprite.Sprite):
 class NPC(pygame.sprite.Sprite):
     def __init__(self, screen_width, screen_height):
         super().__init__()
-        self.base_image = pygame.image.load(PLAYER_SPRITE).convert_alpha()
-        self.crop_area = pygame.Rect(0, 0, 30, 64)
-        example_image = self.base_image.subsurface(self.crop_area)
-        self.rect = example_image.get_rect()
-        self.speed = 10
+        self.image = pygame.image.load(PLAYER_SPRITE).convert_alpha()
+        crop_area = pygame.Rect(0, 0, 30, 64)
+        ex_image = self.image.subsurface(crop_area)
+        self.rect = ex_image.get_rect()
+
         self.screen_height = screen_height
         self.screen_width = screen_width
+        
         target_scale=(15.11111111111111, 4.0625)
         scale = (screen_width/self.rect.width, screen_height/self.rect.height)
         self.final_scale = min(scale[0]/target_scale[0], scale[1]/target_scale[1])
-        
         self.npcs = []
         sprite_width = 120
         
@@ -118,10 +116,12 @@ class NPC(pygame.sprite.Sprite):
         # Define vertical offsets pool for spawning staggered above screen
         self.cols = [-700*(i + 1) for i in range(5)]
         self.available_cols = []
+
+        self.speed = 10
         
         for _ in range(9):
-            crop_area = pygame.Rect(0, random.randint(0, 3)*90, 30, 64)
-            image = self.base_image.subsurface(crop_area)
+            crop_area = pygame.Rect(0, random.randint(0, 3)*92, 30, 92)
+            image = self.image.subsurface(crop_area)
             image = pygame.transform.scale_by(image, self.final_scale)
 
             
@@ -158,8 +158,8 @@ class NPC(pygame.sprite.Sprite):
             
             # If it goes off the bottom, reset it to the top using pools
             if npc["rect"].y >= self.screen_height:
-                crop_area = pygame.Rect(0, random.randint(0, 3)*90, 30, 64)
-                npc["image"] = pygame.transform.scale_by(self.base_image.subsurface(crop_area), self.final_scale)
+                crop_area = pygame.Rect(0, random.randint(0, 3)*92, 30, 92)
+                npc["image"] = pygame.transform.scale_by(self.image.subsurface(crop_area), self.final_scale)
                 
                 npc["rect"].y = self.get_next_cols()
                 npc["rect"].x = self.get_safe_lane()  # Prevents horizontal overlap

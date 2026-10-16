@@ -8,7 +8,7 @@ SCRREN_HEIGHT = 1080
 
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCRREN_HEIGHT))
-player = mechanic.Player(SCREEN_WIDTH/2 + 400, SCRREN_HEIGHT - 300)
+player = mechanic.Player(SCREEN_WIDTH, SCRREN_HEIGHT)
 all_sprites = pygame.sprite.Group()
 road = mechanic.Road(SCREEN_WIDTH,SCRREN_HEIGHT)
 npc = mechanic.NPC(SCREEN_WIDTH, SCRREN_HEIGHT)
