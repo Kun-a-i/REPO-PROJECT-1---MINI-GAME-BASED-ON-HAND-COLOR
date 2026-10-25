@@ -21,7 +21,7 @@ class CameraProcessor:
     def _capture_loop(self):
         while self.running:
             ret, frame = self.cap.read()
-            ret, frame = self.cap.read()
+            frame = cv2.flip(frame, 1)
             if ret:
                 
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -48,7 +48,7 @@ class CameraProcessor:
 
                 second_max = np.max(other_channels, axis=2, keepdims=True)
 
-                filtered_img = np.where(max_vals > (second_max + 60), frame, 0)
+                filtered_img = np.where(max_vals > (second_max + 100), frame, 0)
 
                 filtered_frame = filtered_img.astype(np.uint8)
 
@@ -56,7 +56,32 @@ class CameraProcessor:
                 filtered_frame = filtered_frame.swapaxes(0, 1)
                 pixelated_frame  = cv2.resize(filtered_frame, dimension, interpolation=cv2.INTER_NEAREST)
                 pixelated_frame  = cv2.resize(pixelated_frame, (h, w), interpolation=cv2.INTER_NEAREST)
-                _, thresh_frame = cv2.threshold(pixelated_frame, 100, 255, cv2.THRESH_BINARY)
+                _, thresh_frame = cv2.threshold(pixelated_frame, 120, 255, cv2.THRESH_BINARY)
+
+
+                red = thresh_frame[:, :, 0]
+                green = thresh_frame[:, :, 1]
+                blue = thresh_frame[:, :, 2]
+
+                red_contours, _ = cv2.findContours(red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                green_contours, _ = cv2.findContours(green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                blue_contours, _ = cv2.findContours(blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                tracked_colors = [
+                    (red_contours, (0, 0, 255)),     
+                    (green_contours, (255, 0, 0)),   
+                    (blue_contours, (0, 255, 0))     
+                ]
+                base_frame = np.ascontiguousarray(base_frame)
+                
+                for contours, draw_color in tracked_colors:
+                    for cnt in contours:
+                        if cv2.contourArea(cnt) > 1000: 
+                            M = cv2.moments(cnt)
+                            if M["m00"] != 0:
+                                cX = int(M["m10"] / M["m00"])
+                                cY = int(M["m01"] / M["m00"])
+                                
+                                cv2.circle(thresh_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
 
                 thresh_frame = cv2.resize(thresh_frame, (480, 640))
                 base_frame = cv2.resize(base_frame, (480, 640))
