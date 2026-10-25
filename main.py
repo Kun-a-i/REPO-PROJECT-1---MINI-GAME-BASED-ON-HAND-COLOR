@@ -1,6 +1,7 @@
 import pygame
 import mechanic
 import sys
+import control
 
 
 SCREEN_WIDTH  = 1920
@@ -14,6 +15,8 @@ road = mechanic.Road(SCREEN_WIDTH,SCRREN_HEIGHT)
 npc = mechanic.NPC(SCREEN_WIDTH, SCRREN_HEIGHT)
 all_sprites.add(player)
 clock = pygame.time.Clock()
+
+cam_worker = control.CameraProcessor(4)
 
 
 running = True
@@ -31,13 +34,18 @@ while running:
     road.draw(screen)
     npc.update()
     npc.draw(screen)
+    if npc.check_hit(player) == 'hit' :
+        pygame.time.delay(100)
     player.update()
+    player.draw(screen)
+    cam_worker.update(screen)
 
-    all_sprites.draw(screen)
+
     
 
     clock.tick(60)
     
     pygame.display.flip()
 
+cam_worker.stop()
 pygame.quit()
