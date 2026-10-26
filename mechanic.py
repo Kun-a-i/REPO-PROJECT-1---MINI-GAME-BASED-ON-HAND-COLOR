@@ -60,11 +60,16 @@ class Player(pygame.sprite.Sprite):
         self.velocity_x = 0
         self.is_hit = False
         self.hit_timer = 0
+        self.score = 0
 
     def draw(self, surface):
         # Draw player car
         surface.blit(self.image, self.rect)
+
+        font = pygame.font.Font(None, 50)
         
+        score_surface = font.render(f"Score: {self.score}", True, (255, 255, 255))
+        surface.blit(score_surface, (50, 1000))
         # Debug hitbox
         # pygame.draw.rect(surface, (0, 255, 0), self.hitbox, 2)
 
@@ -110,6 +115,9 @@ class Player(pygame.sprite.Sprite):
 
     def update(self, steer):
         self.handle_input(steer)
+        self.score+=1
+        if self.rect.centerx < 960 :
+            self.score += 1
         self.hitbox.x += self.velocity_x
         self.original_hitbox.center = self.hitbox.center
         self.small_hitbox.center = self.hitbox.center
@@ -136,6 +144,7 @@ class Road(pygame.sprite.Sprite):
         self.screen_height = screen_height
 
     def update(self):
+        
         for rect in self.rects:
             rect.y += self.speed
             if rect.y >= self.screen_height:
@@ -171,7 +180,7 @@ class NPC(pygame.sprite.Sprite):
         self.cols = [-700*(i + 1) for i in range(5)]
         self.available_cols = []
 
-        self.speed = 20
+        self.speed = 10
         
         for _ in range(4):
             crop_area = pygame.Rect(0, random.randint(0, 3)*92, 26, 70)
