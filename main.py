@@ -26,8 +26,9 @@ while running:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             x, y = pygame.mouse.get_pos()
-    
-            print(f"Cursor position: X={x}, Y={y}")
+            pixel = screen.get_at((x, y))
+            h, s, v, a = pixel.hsva
+            print(f"H : {h/2}, S : {s/100 * 255}, V : {v/100 *255}")
             
     screen.fill((0, 255, 0))
     road.update()

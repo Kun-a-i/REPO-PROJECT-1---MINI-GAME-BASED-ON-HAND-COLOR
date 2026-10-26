@@ -6,89 +6,85 @@ import pygame
 class CameraProcessor:
     def __init__(self, cam_index=1):
         self.cap = cv2.VideoCapture(cam_index, cv2.CAP_V4L2)
-        # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
         self.frame = None
         self.thresh_frame = None
         self.running = True
         self.lock = threading.Lock()
         
-        # Start the background worker thread
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
 
     def _capture_loop(self):
+
+        base_frame = None
         while self.running:
             ret, frame = self.cap.read()
             frame = cv2.flip(frame, 1)
+            
             if ret:
-                
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                min_val = np.min(gray)
-                max_val = np.max(gray)
-                
-                lut = np.arange(256, dtype=np.float32)
-                if max_val > min_val:
-                    lut = np.clip((lut - min_val) / (max_val - min_val) * 255, 0, 255)
-                lut = lut.astype(np.uint8)
-                
-                frame = cv2.LUT(frame, lut)
+                frame = self.auto_gamma_correction(frame)
+                frame = self.lut_stretch(frame)
+
                 base_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                base_frame = base_frame.swapaxes(0,1)
-                h, w, _ = frame.shape
+                w, h, _ = frame.shape
 
                 dimension = (int(h/16), int(w/16))
                 
-                img = frame.astype(np.int16)
-
-                max_vals = np.max(img, axis=2, keepdims=True)
-
-                other_channels = np.where(img == max_vals, 0, img)
-
-                second_max = np.max(other_channels, axis=2, keepdims=True)
-
-                filtered_img = np.where(max_vals > (second_max + 100), frame, 0)
-
-                filtered_frame = filtered_img.astype(np.uint8)
-
-                filtered_frame = cv2.cvtColor(filtered_frame, cv2.COLOR_BGR2RGB)
-                filtered_frame = filtered_frame.swapaxes(0, 1)
-                pixelated_frame  = cv2.resize(filtered_frame, dimension, interpolation=cv2.INTER_NEAREST)
+                
+                pixelated_frame  = cv2.resize(frame, dimension, interpolation=cv2.INTER_NEAREST)
                 pixelated_frame  = cv2.resize(pixelated_frame, (h, w), interpolation=cv2.INTER_NEAREST)
-                _, thresh_frame = cv2.threshold(pixelated_frame, 120, 255, cv2.THRESH_BINARY)
+                _, thresh_frame = cv2.threshold(pixelated_frame, 90, 255, cv2.THRESH_BINARY)
 
+               
+                hsv_frame = cv2.cvtColor(pixelated_frame, cv2.COLOR_BGR2HSV)
 
-                red = thresh_frame[:, :, 0]
-                green = thresh_frame[:, :, 1]
-                blue = thresh_frame[:, :, 2]
+                # Green Range
+                lower_green = np.array([63, 70, 105])   
+                upper_green = np.array([85, 130, 185]) 
 
-                red_contours, _ = cv2.findContours(red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                green_contours, _ = cv2.findContours(green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                blue_contours, _ = cv2.findContours(blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+
+                # Blue Range
+                lower_blue = np.array([90, 140, 180])
+                upper_blue = np.array([112, 255, 255])
+                blue_mask = cv2.inRange(hsv_frame, lower_blue, upper_blue)
+
+                
+
+                lower_red2 = np.array([160, 60, 190])
+                upper_red2 = np.array([179, 255, 255])
+
+                # Combine both ranges using bitwise_or
+                red_mask = cv2.inRange(hsv_frame, lower_red2, upper_red2)
+                
+                # 3. Find contours directly on these pristine single-channel masks
                 tracked_colors = [
-                    (red_contours, (0, 0, 255)),     
-                    (green_contours, (255, 0, 0)),   
-                    (blue_contours, (0, 255, 0))     
+                    (red_mask, (255, 0, 0)),    
+                    (green_mask, (0, 255, 0)),  
+                    (blue_mask, (0, 0, 255))   
                 ]
+
                 base_frame = np.ascontiguousarray(base_frame)
                 
-                for contours, draw_color in tracked_colors:
+                pixelated_frame = cv2.cvtColor(pixelated_frame, cv2.COLOR_BGR2RGB)
+                for mask, draw_color in tracked_colors:
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     for cnt in contours:
-                        if cv2.contourArea(cnt) > 1000: 
+                        if cv2.contourArea(cnt) > 3000: 
                             M = cv2.moments(cnt)
                             if M["m00"] != 0:
                                 cX = int(M["m10"] / M["m00"])
                                 cY = int(M["m01"] / M["m00"])
-                                
-                                cv2.circle(thresh_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
-
-                thresh_frame = cv2.resize(thresh_frame, (480, 640))
-                base_frame = cv2.resize(base_frame, (480, 640))
-
+                                cv2.circle(base_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
+                                cv2.circle(pixelated_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
+            
+            pixelated_frame = pixelated_frame.swapaxes(0,1)
+            base_frame = base_frame.swapaxes(0,1)
             with self.lock:
-                self.frame = base_frame
-                self.thresh_frame = thresh_frame
+                if base_frame is not None:
+                    self.frame = base_frame
+                    self.thresh_frame = pixelated_frame
 
     def update(self, screen):
         with self.lock:
@@ -98,7 +94,35 @@ class CameraProcessor:
                 
                 filtered_surface.set_colorkey((0, 0, 0))
                 screen.blit(surface, (0, 0))
-                screen.blit(filtered_surface, (0,0))
+                # screen.blit(filtered_surface, (0,0))
+
+    def auto_gamma_correction(self, frame, target_gamma=0.4):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        mean_brightness = np.mean(gray)
+        
+        if mean_brightness < 1:
+            mean_brightness = 1.0
+
+        gamma = np.log(mean_brightness / 255.0) / np.log(target_gamma)
+        
+        
+        inv_gamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 
+                        for i in np.arange(0, 256)]).astype("uint8")
+        
+        return cv2.LUT(frame, table)
+
+    def lut_stretch(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        min_val = np.min(gray)
+        max_val = np.max(gray)
+                
+        lut = np.arange(256, dtype=np.float32)
+        if max_val > min_val:
+            lut = np.clip((lut - min_val) / (max_val - min_val) * 255, 0, 255)
+        lut = lut.astype(np.uint8)
+
+        return cv2.LUT(frame, lut)
 
     def stop(self):
         self.running = False
