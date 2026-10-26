@@ -35,11 +35,12 @@ while running:
     road.draw(screen)
     npc.update()
     npc.draw(screen)
-    if npc.check_hit(player) == 'hit' :
-        pygame.time.delay(100)
-    player.update()
+    # if npc.check_hit(player) == 'hit' :
+    #     pygame.time.delay(100)
+    player.update(steer=cam_worker.steering())
     player.draw(screen)
     cam_worker.update(screen)
+    player.draw_steer(screen)
 
 
     

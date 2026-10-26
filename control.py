@@ -11,6 +11,10 @@ class CameraProcessor:
         self.thresh_frame = None
         self.running = True
         self.lock = threading.Lock()
+
+        self.right_hand = None
+        self.left_hand = None
+        self.pistol = None
         
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
@@ -40,35 +44,39 @@ class CameraProcessor:
                 hsv_frame = cv2.cvtColor(pixelated_frame, cv2.COLOR_BGR2HSV)
 
                 # Green Range
-                lower_green = np.array([63, 70, 105])   
-                upper_green = np.array([85, 130, 185]) 
+                lower_green = np.array([45, 70, 105])   
+                upper_green = np.array([85, 200, 185]) 
 
                 green_mask = cv2.inRange(hsv_frame, lower_green, upper_green)
 
                 # Blue Range
-                lower_blue = np.array([90, 140, 180])
-                upper_blue = np.array([112, 255, 255])
+                lower_blue = np.array([90, 140, 120])
+                upper_blue = np.array([120, 255, 255])
                 blue_mask = cv2.inRange(hsv_frame, lower_blue, upper_blue)
 
                 
 
-                lower_red2 = np.array([160, 60, 190])
+                lower_red2 = np.array([160, 60, 120])
                 upper_red2 = np.array([179, 255, 255])
 
                 # Combine both ranges using bitwise_or
                 red_mask = cv2.inRange(hsv_frame, lower_red2, upper_red2)
-                
-                # 3. Find contours directly on these pristine single-channel masks
+
+
+                red_centroid =[]
+                green_centroid = []
+                blue_centroid = []
+                              
                 tracked_colors = [
-                    (red_mask, (255, 0, 0)),    
-                    (green_mask, (0, 255, 0)),  
-                    (blue_mask, (0, 0, 255))   
+                    (red_centroid, red_mask, (255, 0, 0)),    
+                    (green_centroid, green_mask, (0, 255, 0)),  
+                    (blue_centroid, blue_mask, (0, 0, 255))   
                 ]
 
                 base_frame = np.ascontiguousarray(base_frame)
                 
                 pixelated_frame = cv2.cvtColor(pixelated_frame, cv2.COLOR_BGR2RGB)
-                for mask, draw_color in tracked_colors:
+                for centroid, mask, draw_color in tracked_colors:
                     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     for cnt in contours:
                         if cv2.contourArea(cnt) > 3000: 
@@ -76,22 +84,36 @@ class CameraProcessor:
                             if M["m00"] != 0:
                                 cX = int(M["m10"] / M["m00"])
                                 cY = int(M["m01"] / M["m00"])
+                                centroid.append((cX, cY))
                                 cv2.circle(base_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
                                 cv2.circle(pixelated_frame, (cX, cY), radius=6, color=draw_color, thickness=-1)
             
-            pixelated_frame = pixelated_frame.swapaxes(0,1)
-            base_frame = base_frame.swapaxes(0,1)
+                pixelated_frame = pixelated_frame.swapaxes(0,1)
+                base_frame = base_frame.swapaxes(0,1)
             with self.lock:
                 if base_frame is not None:
                     self.frame = base_frame
                     self.thresh_frame = pixelated_frame
+                    if red_centroid:
+                        self.right_hand = red_centroid[0]
+                    else:
+                        self.right_hand = None
+                    if blue_centroid:
+                        self.left_hand = blue_centroid[0]
+                    else:
+                        self.left_hand = None
+                    if green_centroid:
+                        self.pistol = green_centroid[0]
+                    else:
+                        self.pistol = None
 
     def update(self, screen):
+        
         with self.lock:
+            
             if self.frame is not None:
                 filtered_surface = pygame.surfarray.make_surface(self.thresh_frame)
                 surface = pygame.surfarray.make_surface(self.frame)
-                
                 filtered_surface.set_colorkey((0, 0, 0))
                 screen.blit(surface, (0, 0))
                 # screen.blit(filtered_surface, (0,0))
@@ -124,6 +146,17 @@ class CameraProcessor:
 
         return cv2.LUT(frame, lut)
 
+    def steering(self):
+        steer = 0
+        if self.right_hand and self.left_hand:
+            rightX, rightY = self.right_hand
+            leftX, leftY = self.left_hand
+            if rightY + 35 < leftY :
+                steer = -1
+            if rightY - 35 > leftY :
+                steer = 1
+        return steer
+    
     def stop(self):
         self.running = False
         self.thread.join()
